@@ -14,8 +14,8 @@ t_cosine = pd.read_pickle('t_matrix')
 g_cosine.index = t_cosine.index
 g_matrix = pd.read_pickle('g_matrix')
 
-Q = np.dot(g_matrix, Genotype)
-K = np.dot(g_cosine, Genotype)
+K = np.dot(g_matrix, Genotype)
+Q = np.dot(g_coKsine, Genotype)
 K_T = K.T
 V = np.dot(t_cosine, Genotype)
 
