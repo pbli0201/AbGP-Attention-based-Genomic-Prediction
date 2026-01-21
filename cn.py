@@ -8,8 +8,8 @@ snpdata = snpdata.values
 n_samples, n_snps = snpdata.shape
 cond_numbers = []
 
-for i in range(1, 11):
-    sample_size = int(i * n_samples / 10)
+for i in range(1, 21):
+    sample_size = int(i * n_samples / 20)
     subset = snpdata[:sample_size, :] 
     cov_matrix = np.cov(subset, rowvar=False) 
     condition_number = cond(cov_matrix)
@@ -18,7 +18,7 @@ for i in range(1, 11):
 cond_df = pd.DataFrame(cond_numbers, columns=['Sample Size', 'Condition Number'])
 cond_df.to_csv('2.5_condition_numbers.csv', index=False)
 
-sample_percentages = np.arange(10, 101, 10)
+sample_percentages = np.arange(5, 101, 20)
 plt.plot(sample_percentages, cond_df['Condition Number'], marker='o')
 plt.grid(True)
 plt.show()
