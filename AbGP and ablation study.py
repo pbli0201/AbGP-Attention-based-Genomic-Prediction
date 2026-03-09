@@ -1,12 +1,10 @@
-#####################  AbGP model and ablation study
-
 import pandas as pd 
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from torch import nn
-from torch.utils.data import DataLoader,Dataset
-from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, Dataset
+from sklearn.model_selection import KFold
 import pytorch_lightning as pl
 from scipy.stats import pearsonr
 from sklearn.preprocessing import StandardScaler
@@ -87,7 +85,6 @@ class conv_xr(nn.Module):
         return self.conv_xr_model(x)
 
 
-
 class maxpooling_xr(nn.Module):
     def __init__(self, input_size, output_size):
         super(maxpooling_xr, self).__init__()
@@ -124,7 +121,6 @@ class maxpooling_xr(nn.Module):
         x = self.fc3(x)  
         x = self.fc4(x)  
         return x
-
 
 
 class batch_xr(nn.Module):
@@ -289,13 +285,10 @@ torch.backends.cudnn.benchmark = False
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using {device} device")
 
-
-
 phe_1496 = pd.read_csv('HX-B_phe_20.csv', index_col=0)
 phe_1496.replace(' ', np.nan, inplace=True)
 phe_1496 = phe_1496.apply(pd.to_numeric, errors='coerce')
 Genotypes_1496 = pd.read_pickle('HX-B_(1.25%)_20.csv')
-
 
 Phenotypes = pd.DataFrame(phe_1496.iloc[:, 7])
 missing_phe_index = Phenotypes[Phenotypes.isna().any(axis=1)].index
@@ -303,27 +296,8 @@ missing_phe_index = Phenotypes[Phenotypes.isna().any(axis=1)].index
 Genotypes = Genotypes_1496.drop(index=missing_phe_index)
 phe = Phenotypes.drop(index=missing_phe_index)
 
-
-GtoP_X_train, GtoP_X_test, GtoP_y_train, GtoP_y_test = train_test_split(
-    Genotypes, phe, test_size=0.2, )
-
-
-scaler = StandardScaler()
-GtoP_y_train = scaler.fit_transform(GtoP_y_train.values.reshape(-1,1)).ravel()
-GtoP_y_test  = scaler.transform(GtoP_y_test.values.reshape(-1,1)).ravel()
-
-GtoP_y_train = pd.Series(GtoP_y_train)
-GtoP_y_test  = pd.Series(GtoP_y_test)
-
-batch_size = 90 
-train_dataset = GtoP_dataset(GtoP_X_train, GtoP_y_train)
-test_dataset  = GtoP_dataset(GtoP_X_test,  GtoP_y_test)
-train_loader  = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-test_loader   = DataLoader(test_dataset,  batch_size=batch_size, shuffle=False)
-
-
 model_list = [
-    ("AbGP",    AbGP),
+    ("AbGP",          AbGP),
     ("conv_xr",         conv_xr),
     ("maxpooling_xr",   maxpooling_xr),
     ("batch_xr",        batch_xr),
@@ -334,10 +308,12 @@ model_list = [
 
 epochs = 5
 learning_rate = 1e-4
+batch_size = 90
 loss_fn = nn.MSELoss()
 
+kf = KFold(n_splits=5, shuffle=True, random_state=9527)
+
 all_results = {}
-num_repeat = 5  
 
 for name, model_class in model_list:
     print("=========================================")
@@ -347,9 +323,26 @@ for name, model_class in model_list:
     train_loss_history_all = []
     test_loss_history_all  = []
     
-    for run_idx in range(num_repeat):
-        print(f"  [Run {run_idx+1}/{num_repeat}]")
+    for fold, (train_idx, test_idx) in enumerate(kf.split(Genotypes)):
+        print(f"  [Fold {fold+1}/5]")
         
+        GtoP_X_train = Genotypes.iloc[train_idx]
+        GtoP_X_test  = Genotypes.iloc[test_idx]
+        GtoP_y_train = phe.iloc[train_idx]
+        GtoP_y_test  = phe.iloc[test_idx]
+
+        scaler = StandardScaler()
+        GtoP_y_train = scaler.fit_transform(GtoP_y_train.values.reshape(-1, 1)).ravel()
+        GtoP_y_test  = scaler.transform(GtoP_y_test.values.reshape(-1, 1)).ravel()
+
+        GtoP_y_train = pd.Series(GtoP_y_train)
+        GtoP_y_test  = pd.Series(GtoP_y_test)
+
+        train_dataset = GtoP_dataset(GtoP_X_train, GtoP_y_train)
+        test_dataset  = GtoP_dataset(GtoP_X_test,  GtoP_y_test)
+        train_loader  = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        test_loader   = DataLoader(test_dataset,  batch_size=batch_size, shuffle=False)
+
         model = model_class(input_size=GtoP_X_train.shape[1], output_size=1).to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -370,22 +363,20 @@ for name, model_class in model_list:
         train_loss_history_all.append(train_losses)
         test_loss_history_all.append(test_losses)
 
-        print(f"model training Pearson r in {run_idx+1}  = {correlation:.4f}")
+        print(f"model training Pearson r in Fold {fold+1}  = {correlation:.4f}")
     
     mean_corr = np.mean(corr_list)
     print(f"model {name} mean Pearson r  = {mean_corr:.4f}\n")
     
     all_results[name] = {
-        "correlations": corr_list,                   
-        "train_losses": train_loss_history_all,      
-        "test_losses":  test_loss_history_all,       
+        "correlations": corr_list,                    
+        "train_losses": train_loss_history_all,       
+        "test_losses":  test_loss_history_all,        
         "mean_corr":    mean_corr
     }
 
-
 LW = pd.DataFrame(all_results)
 LW.to_csv('TB_xr.csv')
-
 
 
 
