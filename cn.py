@@ -18,7 +18,7 @@ for i in range(1, 21):
 cond_df = pd.DataFrame(cond_numbers, columns=['Sample Size', 'Condition Number'])
 cond_df.to_csv('2.5_condition_numbers.csv', index=False)
 
-sample_percentages = np.arange(5, 101, 20)
+sample_percentages = np.arange(5, 101, 5)
 plt.plot(sample_percentages, cond_df['Condition Number'], marker='o')
 plt.grid(True)
 plt.show()
