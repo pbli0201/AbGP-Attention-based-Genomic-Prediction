@@ -1,24 +1,30 @@
-import numpy as np
 import pandas as pd
-from numpy.linalg import cond
+import numpy as np
 import matplotlib.pyplot as plt
 
-snpdata = pd.read_pickle('snp_top_2.5_percent.pkl')
-snpdata = snpdata.values
-n_samples, n_snps = snpdata.shape
-cond_numbers = []
 
-for i in range(1, 21):
-    sample_size = int(i * n_samples / 20)
-    subset = snpdata[:sample_size, :] 
-    cov_matrix = np.cov(subset, rowvar=False) 
-    condition_number = cond(cov_matrix)
-    cond_numbers.append([sample_size, condition_number])
+g7412 = pd.read_pickle('snp_pig')
 
-cond_df = pd.DataFrame(cond_numbers, columns=['Sample Size', 'Condition Number'])
-cond_df.to_csv('2.5_condition_numbers.csv', index=False)
+props = np.arange(0.05, 1.01, 0.05)
+cond_nums_g7412 = []
 
-sample_percentages = np.arange(5, 101, 5)
-plt.plot(sample_percentages, cond_df['Condition Number'], marker='o')
-plt.grid(True)
+for p in props:
+    n_sample = int(g7412.shape[0] * p)
+    sub_g7412 = g7412.iloc[:n_sample, :]
+    # sub_g592929 = g592929.iloc[:n_sample, :]
+    c_g7412 = np.linalg.cond(sub_g7412.to_numpy())
+    # c_g592929 = np.linalg.cond(sub_g592929.to_numpy())
+    
+    cond_nums_g7412.append(c_g7412)
+    # cond_nums_g592929.append(c_g592929)
+
+plt.figure(figsize=(8, 6))
+plt.plot(props * 100, cond_nums_g7412, marker='o', color='blue', label='1.25')
+plt.xlabel('Sample Size (%)')
+plt.ylabel('Condition Number')
+plt.legend()
 plt.show()
+
+cond_nums_g7412 = pd.DataFrame(cond_nums_g7412)
+cond_nums_g7412.to_csv('cn14823.csv', index=False)
+
